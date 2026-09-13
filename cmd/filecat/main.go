@@ -42,11 +42,17 @@ func main() {
 	}
 
 	var busy atomic.Bool
+	done := make(chan struct{})
 	s := &tailcat.Server{OnTCP: func(port uint16) func(net.Conn) {
 		if port != filecatPort || !busy.CompareAndSwap(false, true) {
 			return nil
 		}
-		return func(conn net.Conn) { defer busy.Store(false); serve(conn, path, info) }
+		return func(conn net.Conn) {
+			defer busy.Store(false)
+			if serve(conn, path, info) {
+				close(done)
+			}
+		}
 	}}
 	if err := s.Start(); err != nil {
 		fatal(err)
@@ -65,29 +71,33 @@ func main() {
 	fmt.Println("\nWaiting for receiver...")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	<-ctx.Done()
+	select {
+	case <-ctx.Done():
+	case <-done:
+		fmt.Println("Done")
+	}
 }
 
-func serve(conn net.Conn, path string, info os.FileInfo) {
+func serve(conn net.Conn, path string, info os.FileInfo) bool {
 	defer conn.Close()
 	name := filepath.Base(path)
 	mimeType := mime.TypeByExtension(filepath.Ext(name))
 	if err := protocol.Write(conn, protocol.Message{Type: "hello", Version: protocol.Version, Name: name, Size: info.Size(), MIME: mimeType}); err != nil {
-		return
+		return false
 	}
 	message, err := protocol.Read(conn)
 	if err != nil || message.Type != "get" {
-		return
+		return false
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		return
+		return false
 	}
 	defer f.Close()
 	if _, err = io.CopyN(conn, f, info.Size()); err != nil {
-		return
+		return false
 	}
-	_ = protocol.Write(conn, protocol.Message{Type: "done"})
+	return protocol.Write(conn, protocol.Message{Type: "done"}) == nil
 }
 
 func fatal(err error) { fmt.Fprintln(os.Stderr, "filecat:", err); os.Exit(1) }
