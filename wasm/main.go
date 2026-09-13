@@ -4,13 +4,18 @@ import (
 	"context"
 	"errors"
 	"github.com/tailscale/tailcat"
-	"io"
 	"net"
 	"syscall/js"
 	"time"
 )
 
-func main() { js.Global().Set("tailcatDial", js.FuncOf(dial)); select {} }
+func main() {
+	js.Global().Set("tailcatDial", js.FuncOf(dial))
+	if ready := js.Global().Get("onTailcatReady"); ready.Type() == js.TypeFunction {
+		ready.Invoke()
+	}
+	select {}
+}
 func dial(_ js.Value, args []js.Value) any {
 	if len(args) != 1 {
 		return js.Global().Get("Promise").Call("reject", "options required")
@@ -67,5 +72,3 @@ func promise(fn func() (any, error)) js.Value {
 		return nil
 	}))
 }
-
-var _ = io.EOF
