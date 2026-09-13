@@ -65,13 +65,13 @@ func main() {
 	url := fmt.Sprintf("%s#v=1&tc=%s", *receiver, s.TailcatAddr())
 	if *urlOnly {
 		fmt.Println(url)
-		return
+	} else {
+		fmt.Printf("\n%s  %.1f MB\n\n%s\n\n", filepath.Base(path), float64(info.Size())/1e6, url)
+		if !*noQR {
+			qrterminal.GenerateWithConfig(url, qrterminal.Config{Level: qrterminal.M, Writer: os.Stdout, BlackChar: "██", WhiteChar: "  ", QuietZone: 2})
+		}
+		fmt.Println("\nWaiting for receiver...")
 	}
-	fmt.Printf("\n%s  %.1f MB\n\n%s\n\n", filepath.Base(path), float64(info.Size())/1e6, url)
-	if !*noQR {
-		qrterminal.GenerateWithConfig(url, qrterminal.Config{Level: qrterminal.M, Writer: os.Stdout, BlackChar: "██", WhiteChar: "  ", QuietZone: 2})
-	}
-	fmt.Println("\nWaiting for receiver...")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	if *timeout == 0 {
