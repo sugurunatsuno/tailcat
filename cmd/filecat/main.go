@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync/atomic"
+	"time"
 
 	"github.com/mdp/qrterminal/v3"
 	"github.com/sugurunatsuno/tailcat/internal/protocol"
@@ -26,6 +27,8 @@ func main() {
 	flag.Usage = func() { fmt.Fprintln(os.Stderr, "usage: filecat <file>") }
 	noQR := flag.Bool("no-qr", false, "do not print a QR code")
 	urlOnly := flag.Bool("url-only", false, "print only the receiver URL")
+	receiver := flag.String("receiver", receiverURL, "receiver page URL")
+	timeout := flag.Duration("timeout", 15*time.Minute, "wait timeout; 0 waits forever")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		flag.Usage()
@@ -59,7 +62,7 @@ func main() {
 	}
 	defer s.Close()
 
-	url := fmt.Sprintf("%s#v=1&tc=%s", receiverURL, s.TailcatAddr())
+	url := fmt.Sprintf("%s#v=1&tc=%s", *receiver, s.TailcatAddr())
 	if *urlOnly {
 		fmt.Println(url)
 		return
@@ -71,10 +74,22 @@ func main() {
 	fmt.Println("\nWaiting for receiver...")
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	if *timeout == 0 {
+		select {
+		case <-ctx.Done():
+		case <-done:
+			fmt.Println("Done")
+		}
+		return
+	}
+	timer := time.NewTimer(*timeout)
+	defer timer.Stop()
 	select {
 	case <-ctx.Done():
 	case <-done:
 		fmt.Println("Done")
+	case <-timer.C:
+		fmt.Fprintln(os.Stderr, "filecat: timeout")
 	}
 }
 
