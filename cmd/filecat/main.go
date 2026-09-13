@@ -19,7 +19,7 @@ import (
 
 const (
 	filecatPort = 7331
-	receiverURL = "https://username.github.io/filecat/"
+	receiverURL = "https://sugurunatsuno.github.io/tailcat/"
 )
 
 func main() {
